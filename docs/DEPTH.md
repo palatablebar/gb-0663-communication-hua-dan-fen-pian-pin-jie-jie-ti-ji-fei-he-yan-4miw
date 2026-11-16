@@ -8,7 +8,7 @@
 | M1 话单接收 | 接收文件并保留逻辑与物理行号 | `/intake`、`/api/intake` | `app/modules/intake/reader.py` `app/modules/intake/service.py` | `tests/test_intake.py` |
 | M2 资费契约 | 归一序号时区并校验区域 | `/contract`、`/api/contract` | `app/modules/contract/normalize.py` `app/modules/contract/service.py` | `tests/test_contract.py` |
 | M3 分片拼接 | 按会话去重并求区间并集 | `/model`、`/api/model` | `app/modules/model/stitch.py` `app/modules/model/service.py` | `tests/test_model.py` |
-| M4 计费重算 | 按并集秒取整并阶梯计费 | `/calculate`、`/api/calculate` | `app/modules/calculate/tariff.py` `app/modules/calculate/service.py` | `tests/test_calculate.py` |
+| M4 计费重算 | 按并集秒取整并阶梯计费 | `/calculate`、`/api/calculate` | `app/modules/calculate/tariff.py` `app/modules/calculate/service.py` | `tests/test_calculate.py` `tests/test_policy.py` |
 | M5 坏单隔离 | 筛查拒收原因与原始证据 | `/quarantine`、`/api/quarantine` | `app/modules/quarantine/diagnose.py` `app/modules/quarantine/service.py` | `tests/test_quarantine.py` |
 | M6 账单勾稽 | 计费金额与供应商账单逐会话对照 | `/reconcile`、`/api/reconcile` | `app/modules/reconcile/compare.py` `app/modules/reconcile/service.py` | `tests/test_reconcile.py` |
 | M7 批次复核 | 摘要幂等归档与版本复核 | `/batches`、`/api/batches` | `app/modules/batches/review.py` `app/modules/batches/service.py` | `tests/test_batches.py` |
@@ -26,12 +26,14 @@
 | TRAP-23 | 相邻端点 | 重复计费或任意选择数据 | 确定性拒收并保留逐行来源 | `app/modules/model/stitch.py` | `tests/test_model.py::test_adjacent_half_open` |
 | TRAP-25 | 资费版本重叠 | 重复计费或任意选择数据 | 确定性拒收并保留逐行来源 | `app/modules/calculate/tariff.py` | `tests/test_calculate.py::test_overlapping_version` |
 | TRAP-26 | 陈旧复核 | 重复计费或任意选择数据 | 确定性拒收并保留逐行来源 | `app/modules/batches/service.py` | `tests/test_batches.py::test_stale_review` |
+| TRAP-27 | 跨资费版本重复取整 | 逐段各自向上取整多收 | 整通只取整一次，分钟按最大余数法分摊到段 | `app/modules/calculate/tariff.py` | `tests/test_policy.py::test_no_double_ceiling` |
+| TRAP-28 | 策略切换失败丢数据 | 失败运行覆盖上一版 | 先算后写单事务，失败保留上一版与全部分片 | `app/pipeline.py` `app/store.py` | `tests/test_policy.py::test_failed_switch_preserves_previous` |
 
 ## 对账规则
-输入分片=计费会话中的有效分片+隔离分片+空行。原始去重分片秒=并集有效秒+重叠剔除秒。供应商金额减重算金额逐会话解释；无法匹配的账单单列，不自动当作零。
+输入分片=计费会话中的有效分片+隔离分片+空行。原始去重分片秒=并集有效秒+重叠剔除秒。供应商金额减重算金额逐会话解释；无法匹配的账单单列，不自动当作零。每段金额之和=会话金额=批次总额，分段秒数与计费分钟同样对齐，勾稽页逐会话列出各段版本、有效秒与金额来源。
 
 ## 流水线与反例
-标准会话3片原始100秒，并集90秒，间隙50秒；按跨度会错误收3分钟，正确只收2分钟。计费跨月用带偏移时间作区间并集；资费边界为半开区间，有版本重叠直接隔离该会话的全部片段。事务写入完整批次；摘要含资费与供应商账单，重复批次不追加。复核乐观锁拒绝陈旧提交。
+标准会话3片原始100秒，并集90秒，间隙50秒；按跨度会错误收3分钟，正确只收2分钟。计费跨月用带偏移时间作区间并集；资费边界为半开区间，有版本重叠直接隔离该会话的全部片段。boundary样例会话跨过2026-11-03T00:00+08:00生效点：whole_call整通沿用起话版本，per_period按版本边界切段、整通只取整一次，B00004两段各20秒合计只计1分钟。事务写入完整批次；摘要含资费与供应商账单，重复批次不追加。复核乐观锁拒绝陈旧提交。
 
 ## 已知不覆盖
 不处理跨运营商实时漫游清分，不跨币种换汇。每分片最长24小时。分片缺序将整会话隔离，不能推断未到达的时长。

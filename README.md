@@ -10,7 +10,7 @@ docker compose config --quiet
 docker compose exec -T app pytest -q
 ```
 
-访问 http://localhost:18202 ，首次自动运行脏话单。工具条可切换标准与旧编码样例。话单接收页可粘贴自有CSV；计费页可筛选会话。坏单隔离导出CSV，完整API结构见 `/docs`。每个计算模块可通过POST模块API独立试跑；`POST /api/runs`完成持久化运行。
+访问 http://localhost:18202 ，首次自动运行脏话单。工具条可切换标准、旧编码与跨资费生效点样例，并可选择计费策略：整通沿用起话资费（默认）或分时段各自计费。话单接收页可粘贴自有CSV；计费页可筛选会话。坏单隔离导出CSV，完整API结构见 `/docs`。每个计算模块可通过POST模块API独立试跑；`POST /api/runs`完成持久化运行，策略经`policy`字段传入并写入运行清单。
 
 ## 演示
 
@@ -19,6 +19,7 @@ docker compose exec -T app pytest -q
 3. 切换脏话单，C00001冲突整会话隔离、C00090缺序隔离。
 4. 账单勾稽逐会话比较供应商费用，缺账单保持未知。
 5. 重跑不追加批次；复核使用当前版本，旧版请求返回409。
+6. boundary样例跨过2026-11-03T00:00+08:00资费生效点：整通策略总额3.80元，分时段策略总额3.95元；B00004两段各20秒整通只计1分钟，勾稽页逐段列出版本、有效秒与金额来源并与会话总额对齐。
 
 SQLite数据保存在records命名卷。执行 `docker compose down`停止服务保留数据；确认演示数据无需保留后可使用 `docker compose down -v`清空本项目记录。
 

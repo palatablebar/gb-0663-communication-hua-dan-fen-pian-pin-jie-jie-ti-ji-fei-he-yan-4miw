@@ -25,7 +25,7 @@ def health():return {'status':'ok'}
 @app.post('/api/runs')
 def run(payload:dict=Body(default={})):
     raw=payload.get('csv_text')
-    return persist(execute(raw.encode('utf-8') if isinstance(raw,str) else sample_bytes(payload.get('sample','dirty'))))
+    return persist(execute(raw.encode('utf-8') if isinstance(raw,str) else sample_bytes(payload.get('sample','dirty')),payload.get('policy','whole_call')))
 from app.modules.intake.handler import router as r1
 from app.modules.contract.handler import router as r2
 from app.modules.model.handler import router as r3
